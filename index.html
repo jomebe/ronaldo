@@ -19,11 +19,12 @@
 <body>
   <h1>멀티플레이 피카츄 배구</h1>
   <canvas id="gameCanvas" width="800" height="400"></canvas>
+  <p id="status"></p>
 
   <script type="module">
     // Firebase 설정
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+    import { getDatabase, ref, set, onValue, remove, get, update } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBXvl7fhTJ9f7kK2jk3Bt7_G_GT_TxGJ0k",
@@ -44,17 +45,18 @@
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    // 게임 상태
+    // 로컬 플레이어 상태
     const localPlayer = {
       id: Math.random().toString(36).substring(2),
       x: 150,
       y: 300,
       width: 40,
       height: 40,
-      color: 'blue',
+      color: '',
       score: 0
     };
 
+    // 공 상태
     const ball = {
       x: 400,
       y: 200,
@@ -65,6 +67,7 @@
 
     const players = {};
     const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+    const maxPlayers = 2;
 
     // Firebase 데이터 참조
     const playersRef = ref(db, 'players');
@@ -74,26 +77,56 @@
     document.addEventListener('keydown', (e) => { keys[e.key] = true; });
     document.addEventListener('keyup', (e) => { keys[e.key] = false; });
 
-    // Firebase 초기 데이터 설정
-    set(ref(db, `players/${localPlayer.id}`), localPlayer);
-    set(ballRef, ball);
+    async function init() {
+      // 현재 플레이어 수 확인
+      const snapshot = await get(playersRef);
+      const data = snapshot.val() || {};
+      const playerCount = Object.keys(data).length;
 
-    // 다른 플레이어 상태 수신
-    onValue(playersRef, (snapshot) => {
-      const data = snapshot.val();
-      for (let id in data) {
-        players[id] = data[id];
+      if (playerCount >= maxPlayers) {
+        document.getElementById('status').innerText = "게임이 꽉 찼습니다. 나중에 다시 시도해주세요!";
+        return;
       }
-    });
 
-    // 공 상태 수신
-    onValue(ballRef, (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        ball.x = data.x;
-        ball.y = data.y;
-      }
-    });
+      // 플레이어 색상 지정 (파란색, 빨간색)
+      localPlayer.color = playerCount === 0 ? 'blue' : 'red';
+
+      // Firebase에 로컬 플레이어 추가
+      set(ref(db, `players/${localPlayer.id}`), localPlayer);
+
+      // 브라우저 닫힘/새로고침 시 플레이어 제거
+      window.addEventListener('beforeunload', () => {
+        remove(ref(db, `players/${localPlayer.id}`));
+      });
+
+      // 공 데이터 초기 설정
+      onValue(ballRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          ball.x = data.x;
+          ball.y = data.y;
+          ball.vx = data.vx;
+          ball.vy = data.vy;
+        } else {
+          set(ballRef, ball); // 초기값 설정
+        }
+      });
+
+      // 다른 플레이어 상태 수신
+      onValue(playersRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          Object.keys(players).forEach(id => {
+            if (!data[id]) delete players[id]; // 플레이어 삭제
+          });
+          Object.assign(players, data);
+        } else {
+          Object.keys(players).forEach(id => delete players[id]);
+        }
+      });
+
+      gameLoop(); // 게임 시작
+    }
 
     // 로컬 플레이어 이동 업데이트
     function updateLocalPlayer() {
@@ -102,7 +135,7 @@
       if (keys.ArrowLeft) localPlayer.x -= 5;
       if (keys.ArrowRight) localPlayer.x += 5;
 
-      // 캔버스 경계 체크
+      // 경계 제한
       localPlayer.x = Math.max(0, Math.min(canvas.width - localPlayer.width, localPlayer.x));
       localPlayer.y = Math.max(0, Math.min(canvas.height - localPlayer.height, localPlayer.y));
 
@@ -112,6 +145,8 @@
 
     // 공 물리 업데이트
     function updateBall() {
+      if (Object.keys(players).length < maxPlayers) return; // 두 명이 모두 접속해야 공 움직임 시작
+
       ball.x += ball.vx;
       ball.y += ball.vy;
 
@@ -163,7 +198,7 @@
       requestAnimationFrame(gameLoop);
     }
 
-    gameLoop();
+    init(); // 초기화 호출
   </script>
 </body>
 </html>
