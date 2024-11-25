@@ -203,6 +203,7 @@
       Shift: false
     };
     let scores = { blue: 0, red: 0 };
+    let lastUpdateTime = Date.now();
 
     const playersRef = ref(db, 'soccer/players');
     const ballRef = ref(db, 'soccer/ball');
@@ -390,11 +391,9 @@
       // 골대 그리기
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.fillRect(0, (canvas.height - goalSize.height) / 2, goalSize.width, goalSize.height);
-      ctx.fillRect(canvas.width - goalSize.width, (canvas.height - goalSize.height) / 2, 
-                  goalSize.width, goalSize.height);
+      ctx.fillRect(canvas.width - goalSize.width, (canvas.height - goalSize.height) / 2, goalSize.width, goalSize.height);
 
-      
-// 플레이어들 그리기
+      // 플레이어들 그리기
       for (let id in players) {
         const player = players[id];
         // 플레이어 그림자
@@ -440,6 +439,52 @@
       ctx.stroke();
     }
 
+    function updateBall() {
+      const currentTime = Date.now();
+      const deltaTime = (currentTime - lastUpdateTime) / 1000;
+      lastUpdateTime = currentTime;
+
+      // 공 위치 업데이트
+      ball.x += ball.vx * deltaTime * 60;
+      ball.y += ball.vy * deltaTime * 60;
+
+      // 벽 충돌
+      if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+        ball.vx *= -0.8;
+        ball.x = ball.x - ball.radius < 0 ? ball.radius : canvas.width - ball.radius;
+      }
+
+      if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+        ball.vy *= -0.8;
+        ball.y = ball.y - ball.radius < 0 ? ball.radius : canvas.height - ball.radius;
+      }
+
+      // 플레이어와 충돌
+      const allPlayers = { ...players, [localPlayer.id]: localPlayer };
+      for (let id in allPlayers) {
+        const player = allPlayers[id];
+        if (checkCollision(ball, player)) {
+          const dx = ball.x - (player.x + player.width/2);
+          const dy = ball.y - (player.y + player.height/2);
+          const angle = Math.atan2(dy, dx);
+          const speed = 7;
+          
+          ball.vx = Math.cos(angle) * speed;
+          ball.vy = Math.sin(angle) * speed;
+        }
+      }
+
+      // 마찰력 적용
+      ball.vx *= 0.98;
+      ball.vy *= 0.98;
+
+      // 골 체크
+      checkGoal();
+
+      // Firebase에 공 상태 업데이트
+      set(ballRef, ball);
+    }
+
     function checkGoal() {
       // 왼쪽 골대 (blue 팀)
       if (ball.x - ball.radius < goalSize.width && 
@@ -464,46 +509,6 @@
       return false;
     }
 
-    function updateBall() {
-      if (!checkGoal()) {
-        // 벽 충돌
-        if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
-          ball.vx *= -0.8;
-          ball.x = ball.x - ball.radius < 0 ? ball.radius : canvas.width - ball.radius;
-        }
-
-        if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
-          ball.vy *= -0.8;
-          ball.y = ball.y - ball.radius < 0 ? ball.radius : canvas.height - ball.radius;
-        }
-
-        // 플레이어와 충돌
-        const allPlayers = { ...players, [localPlayer.id]: localPlayer };
-        for (let id in allPlayers) {
-          const player = allPlayers[id];
-          if (checkCollision(ball, player)) {
-            const dx = ball.x - (player.x + player.width/2);
-            const dy = ball.y - (player.y + player.height/2);
-            const angle = Math.atan2(dy, dx);
-            const speed = 7;
-            
-            ball.vx = Math.cos(angle) * speed;
-            ball.vy = Math.sin(angle) * speed;
-          }
-        }
-
-        // 마찰력 적용
-        ball.vx *= 0.98;
-        ball.vy *= 0.98;
-
-        ball.x += ball.vx;
-        ball.y += ball.vy;
-
-        // Firebase에 공 위치 업데이트
-        set(ballRef, ball);
-      }
-    }
-
     function resetBall() {
       ball = {
         x: canvas.width / 2,
@@ -516,8 +521,12 @@
     }
 
     function gameLoop() {
-      updateLocalPlayer();
-      // 공 업데이트는 Firebase에서 받아오므로 여기서는 그리기만 수행
+      const currentTime = Date.now();
+      if (currentTime - lastUpdateTime > 16) {  // 약 60fps
+        updateLocalPlayer();
+        updateBall();
+        lastUpdateTime = currentTime;
+      }
       draw();
       requestAnimationFrame(gameLoop);
     }
