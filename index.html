@@ -56,7 +56,7 @@
       score: 0
     };
 
-    // 공 상태
+    // 공 초기 상태
     const ball = {
       x: 400,
       y: 200,
@@ -99,7 +99,12 @@
         remove(ref(db, `players/${localPlayer.id}`));
       });
 
-      // 공 데이터 초기 설정
+      // 공 데이터 초기 설정 및 동기화
+      const ballSnapshot = await get(ballRef);
+      if (!ballSnapshot.exists()) {
+        set(ballRef, ball); // 공 초기값 설정
+      }
+
       onValue(ballRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
@@ -107,8 +112,6 @@
           ball.y = data.y;
           ball.vx = data.vx;
           ball.vy = data.vy;
-        } else {
-          set(ballRef, ball); // 초기값 설정
         }
       });
 
@@ -168,7 +171,7 @@
         }
       }
 
-      // 서버에 업데이트
+      // 서버에 공 상태 업데이트
       set(ballRef, ball);
     }
 
