@@ -1,3 +1,5 @@
+Multiplayer Soccer Game
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -14,10 +16,42 @@
     body {
       text-align: center;
       font-family: Arial, sans-serif;
+      background: #f0f0f0;
     }
     .score {
       font-size: 24px;
       margin: 10px;
+      background: white;
+      padding: 10px;
+      border-radius: 5px;
+      display: inline-block;
+    }
+    .controls {
+      margin: 10px;
+      padding: 10px;
+      background: white;
+      border-radius: 5px;
+    }
+    .player-list {
+      margin: 10px;
+      padding: 10px;
+      background: white;
+      border-radius: 5px;
+      display: inline-block;
+    }
+    #powerMeter {
+      width: 200px;
+      height: 20px;
+      background: #ddd;
+      margin: 10px auto;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #powerBar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, yellow, red);
+      transition: width 0.1s;
     }
   </style>
 </head>
@@ -26,254 +60,372 @@
   <div class="score">
     <span id="blueScore">Blue: 0</span> - <span id="redScore">Red: 0</span>
   </div>
+  <div class="player-list">
+    <h3>접속자 목록</h3>
+    <div id="playerList"></div>
+  </div>
+  <div id="powerMeter"><div id="powerBar"></div></div>
   <canvas id="gameCanvas" width="800" height="400"></canvas>
   <p id="status"></p>
+  <div class="controls">
+    <p>조작법:</p>
+    <p>이동: 방향키 | 슈팅: 스페이스바(길게 누를수록 강력) | 대시: Shift</p>
+  </div>
+
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue, remove, get } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+import { getDatabase, ref, set, onValue, remove, get } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBXvl7fhTJ9f7kK2jk3Bt7_G_GT_TxGJ0k",
-      authDomain: "ronaldo-bc145.firebaseapp.com",
-      databaseURL: "https://ronaldo-bc145-default-rtdb.firebaseio.com",
-      projectId: "ronaldo-bc145",
-      storageBucket: "ronaldo-bc145.firebasestorage.app",
-      messagingSenderId: "1023131883701",
-      appId: "1:1023131883701:web:2ab35df5494794c47086fc",
-      measurementId: "G-59JKT29E2Z"
-    };
+const firebaseConfig = {
+  apiKey: "AIzaSyBXvl7fhTJ9f7kK2jk3Bt7_G_GT_TxGJ0k",
+  authDomain: "ronaldo-bc145.firebaseapp.com",
+  databaseURL: "https://ronaldo-bc145-default-rtdb.firebaseio.com",
+  projectId: "ronaldo-bc145",
+  storageBucket: "ronaldo-bc145.firebasestorage.app",
+  messagingSenderId: "1023131883701",
+  appId: "1:1023131883701:web:2ab35df5494794c47086fc",
+  measurementId: "G-59JKT29E2Z"
+};
 
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
 
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const powerBar = document.getElementById('powerBar');
 
-    // 골대 크기 설정
-    const goalSize = {
-      width: 20,
-      height: 100
-    };
+const goalSize = {
+  width: 20,
+  height: 100
+};
 
-    // 로컬 플레이어 설정
-    const localPlayer = {
-      id: Math.random().toString(36).substring(2),
-      x: 150,
-      y: canvas.height / 2,
-      width: 30,
-      height: 30,
-      color: '',
-      score: 0,
-      team: ''
-    };
+const localPlayer = {
+  id: Math.random().toString(36).substring(2),
+  x: 150,
+  y: canvas.height / 2,
+  width: 30,
+  height: 30,
+  color: '',
+  score: 0,
+  team: '',
+  name: '플레이어_' + Math.floor(Math.random() * 1000),
+  lastActive: Date.now(),
+  powerCharge: 0,
+  isDashing: false
+};
 
-    // 축구공 설정
-    const ball = {
-      x: canvas.width / 2,
-      y: canvas.height / 2,
-      radius: 10,
-      vx: 0,
-      vy: 0
-    };
+const ball = {
+  x: canvas.width / 2,
+  y: canvas.height / 2,
+  radius: 10,
+  vx: 0,
+  vy: 0
+};
 
-    const players = {};
-    const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-    let scores = { blue: 0, red: 0 };
+const players = {};
+const keys = { 
+  ArrowUp: false, 
+  ArrowDown: false, 
+  ArrowLeft: false, 
+  ArrowRight: false,
+  Space: false,
+  Shift: false
+};
+let scores = { blue: 0, red: 0 };
 
-    // Firebase 레퍼런스
-    const playersRef = ref(db, 'soccer/players');
-    const ballRef = ref(db, 'soccer/ball');
-    const scoresRef = ref(db, 'soccer/scores');
+const playersRef = ref(db, 'soccer/players');
+const ballRef = ref(db, 'soccer/ball');
+const scoresRef = ref(db, 'soccer/scores');
 
-    // 키보드 이벤트
-    document.addEventListener('keydown', (e) => { keys[e.key] = true; });
-    document.addEventListener('keyup', (e) => { keys[e.key] = false; });
+// 키보드 이벤트
+document.addEventListener('keydown', (e) => { 
+  keys[e.key] = true;
+  if (e.key === ' ') keys.Space = true;
+  if (e.key === 'Shift') keys.Shift = true;
+});
 
-    async function init() {
-      const snapshot = await get(playersRef);
-      const data = snapshot.val() || {};
-      const playerCount = Object.keys(data).length;
+document.addEventListener('keyup', (e) => { 
+  keys[e.key] = false;
+  if (e.key === ' ') {
+    keys.Space = false;
+    if (localPlayer.powerCharge > 0) {
+      kickBall(localPlayer.powerCharge);
+      localPlayer.powerCharge = 0;
+      updatePowerBar();
+    }
+  }
+  if (e.key === 'Shift') keys.Shift = false;
+});
 
-      if (playerCount >= 2) {
-        document.getElementById('status').innerText = "게임이 꽉 찼습니다!";
-        return;
-      }
+// 플레이어 상태 주기적 업데이트
+setInterval(() => {
+  if (localPlayer.id) {
+    set(ref(db, `soccer/players/${localPlayer.id}/lastActive`), Date.now());
+  }
+}, 5000);
 
-      // 팀 설정
-      localPlayer.team = playerCount === 0 ? 'blue' : 'red';
-      localPlayer.color = localPlayer.team;
-      localPlayer.x = localPlayer.team === 'blue' ? 100 : canvas.width - 100;
+// 비활성 플레이어 체크
+setInterval(() => {
+  const now = Date.now();
+  for (let id in players) {
+    if (now - players[id].lastActive > 10000) { // 10초 이상 응답 없으면 제거
+      remove(ref(db, `soccer/players/${id}`));
+    }
+  }
+}, 5000);
 
-      set(ref(db, `soccer/players/${localPlayer.id}`), localPlayer);
+async function init() {
+  const snapshot = await get(playersRef);
+  const data = snapshot.val() || {};
+  const playerCount = Object.keys(data).length;
 
-      window.addEventListener('beforeunload', () => {
-        remove(ref(db, `soccer/players/${localPlayer.id}`));
+  if (playerCount >= 2) {
+    document.getElementById('status').innerText = "게임이 꽉 찼습니다!";
+    return;
+  }
+
+  localPlayer.team = playerCount === 0 ? 'blue' : 'red';
+  localPlayer.color = localPlayer.team;
+  localPlayer.x = localPlayer.team === 'blue' ? 100 : canvas.width - 100;
+
+  set(ref(db, `soccer/players/${localPlayer.id}`), localPlayer);
+
+  window.addEventListener('beforeunload', () => {
+    remove(ref(db, `soccer/players/${localPlayer.id}`));
+  });
+
+  window.addEventListener('offline', () => {
+    remove(ref(db, `soccer/players/${localPlayer.id}`));
+  });
+
+  const ballSnapshot = await get(ballRef);
+  if (!ballSnapshot.exists()) {
+    set(ballRef, ball);
+  }
+
+  onValue(ballRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) Object.assign(ball, data);
+  });
+
+  onValue(playersRef, (snapshot) => {
+    const data = snapshot.val();
+    updatePlayerList(data);
+    if (data) {
+      Object.keys(players).forEach(id => {
+        if (!data[id]) delete players[id];
       });
-
-      // 공 초기화
-      const ballSnapshot = await get(ballRef);
-      if (!ballSnapshot.exists()) {
-        set(ballRef, ball);
-      }
-
-      // 실시간 데이터 동기화
-      onValue(ballRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) Object.assign(ball, data);
-      });
-
-      onValue(playersRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          Object.keys(players).forEach(id => {
-            if (!data[id]) delete players[id];
-          });
-          Object.keys(data).forEach(id => {
-            if (id !== localPlayer.id) {
-              players[id] = data[id];
-            }
-          });
-        } else {
-          Object.keys(players).forEach(id => delete players[id]);
+      Object.keys(data).forEach(id => {
+        if (id !== localPlayer.id) {
+          players[id] = data[id];
         }
       });
-
-      onValue(scoresRef, (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          scores = data;
-          document.getElementById('blueScore').textContent = `Blue: ${scores.blue}`;
-          document.getElementById('redScore').textContent = `Red: ${scores.red}`;
-        }
-      });
-
-      gameLoop();
+    } else {
+      Object.keys(players).forEach(id => delete players[id]);
     }
+  });
 
-    function updateLocalPlayer() {
-      const speed = 5;
-      if (keys.ArrowUp) localPlayer.y -= speed;
-      if (keys.ArrowDown) localPlayer.y += speed;
-      if (keys.ArrowLeft) localPlayer.x -= speed;
-      if (keys.ArrowRight) localPlayer.x += speed;
-
-      // 경계 제한
-      localPlayer.x = Math.max(0, Math.min(canvas.width - localPlayer.width, localPlayer.x));
-      localPlayer.y = Math.max(0, Math.min(canvas.height - localPlayer.height, localPlayer.y));
-
-      set(ref(db, `soccer/players/${localPlayer.id}`), localPlayer);
+  onValue(scoresRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) {
+      scores = data;
+      document.getElementById('blueScore').textContent = `Blue: ${scores.blue}`;
+      document.getElementById('redScore').textContent = `Red: ${scores.red}`;
     }
+  });
 
-    function updateBall() {
-      // 마찰력 적용
-      ball.vx *= 0.98;
-      ball.vy *= 0.98;
+  gameLoop();
+}
 
-      ball.x += ball.vx;
-      ball.y += ball.vy;
+function updatePlayerList(players) {
+  const playerList = document.getElementById('playerList');
+  playerList.innerHTML = '';
+  if (players) {
+    Object.values(players).forEach(player => {
+      const div = document.createElement('div');
+      div.textContent = `${player.name} (${player.team})`;
+      div.style.color = player.team;
+      playerList.appendChild(div);
+    });
+  }
+}
 
-      // 벽 충돌
-      if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
-        ball.vy *= -0.8;
-      }
+function updatePowerBar() {
+  powerBar.style.width = `${localPlayer.powerCharge}%`;
+}
 
-      // 골 체크
-      if (ball.x - ball.radius < goalSize.width && 
-          ball.y > (canvas.height - goalSize.height) / 2 && 
-          ball.y < (canvas.height + goalSize.height) / 2) {
-        // Red 팀 득점
-        scores.red++;
-        resetBall();
-      } else if (ball.x + ball.radius > canvas.width - goalSize.width && 
-                 ball.y > (canvas.height - goalSize.height) / 2 && 
-                 ball.y < (canvas.height + goalSize.height) / 2) {
-        // Blue 팀 득점
-        scores.blue++;
-        resetBall();
-      }
+function kickBall(power) {
+  const dx = ball.x - (localPlayer.x + localPlayer.width/2);
+  const dy = ball.y - (localPlayer.y + localPlayer.height/2);
+  const angle = Math.atan2(dy, dx);
+  const kickPower = power * 0.2; // 파워에 비례한 속도
+  
+  ball.vx = Math.cos(angle) * kickPower;
+  ball.vy = Math.sin(angle) * kickPower;
+  set(ballRef, ball);
+}
 
-      // 플레이어 충돌
-      const allPlayers = { ...players, [localPlayer.id]: localPlayer };
-      for (let id in allPlayers) {
-        const player = allPlayers[id];
-        if (checkCollision(ball, player)) {
-          const dx = ball.x - (player.x + player.width/2);
-          const dy = ball.y - (player.y + player.height/2);
-          const angle = Math.atan2(dy, dx);
-          const speed = 10;
-          
-          ball.vx = Math.cos(angle) * speed;
-          ball.vy = Math.sin(angle) * speed;
-        }
-      }
+function updateLocalPlayer() {
+  const baseSpeed = 5;
+  const dashSpeed = keys.Shift ? 2 : 1;
+  const speed = baseSpeed * dashSpeed;
 
-      set(ballRef, ball);
-      set(scoresRef, scores);
+  if (keys.ArrowUp) localPlayer.y -= speed;
+  if (keys.ArrowDown) localPlayer.y += speed;
+  if (keys.ArrowLeft) localPlayer.x -= speed;
+  if (keys.ArrowRight) localPlayer.x += speed;
+
+  // 파워 충전
+  if (keys.Space && localPlayer.powerCharge < 100) {
+    localPlayer.powerCharge += 2;
+    updatePowerBar();
+  }
+
+  localPlayer.x = Math.max(0, Math.min(canvas.width - localPlayer.width, localPlayer.x));
+  localPlayer.y = Math.max(0, Math.min(canvas.height - localPlayer.height, localPlayer.y));
+
+  set(ref(db, `soccer/players/${localPlayer.id}`), localPlayer);
+}
+
+function updateBall() {
+  ball.vx *= 0.98;
+  ball.vy *= 0.98;
+
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+    ball.vy *= -0.8;
+    ball.y = ball.y - ball.radius < 0 ? ball.radius : canvas.height - ball.radius;
+  }
+
+  // 골 체크
+  if (ball.x - ball.radius < goalSize.width && 
+      ball.y > (canvas.height - goalSize.height) / 2 && 
+      ball.y < (canvas.height + goalSize.height) / 2) {
+    scores.red++;
+    celebrateGoal('red');
+    resetBall();
+  } else if (ball.x + ball.radius > canvas.width - goalSize.width && 
+             ball.y > (canvas.height - goalSize.height) / 2 && 
+             ball.y < (canvas.height + goalSize.height) / 2) {
+    scores.blue++;
+    celebrateGoal('blue');
+    resetBall();
+  }
+
+  // 벽 충돌
+  if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+    ball.vx *= -0.8;
+    ball.x = ball.x - ball.radius < 0 ? ball.radius : canvas.width - ball.radius;
+  }
+
+  const allPlayers = { ...players, [localPlayer.id]: localPlayer };
+  for (let id in allPlayers) {
+    const player = allPlayers[id];
+    if (checkCollision(ball, player)) {
+      const dx = ball.x - (player.x + player.width/2);
+      const dy = ball.y - (player.y + player.height/2);
+      const angle = Math.atan2(dy, dx);
+      const speed = 7;
+      
+      ball.vx = Math.cos(angle) * speed;
+      ball.vy = Math.sin(angle) * speed;
     }
+  }
 
-    function checkCollision(ball, player) {
-      const dx = ball.x - Math.max(player.x, Math.min(ball.x, player.x + player.width));
-      const dy = ball.y - Math.max(player.y, Math.min(ball.y, player.y + player.height));
-      return (dx * dx + dy * dy) < (ball.radius * ball.radius);
-    }
+  set(ballRef, ball);
+  set(scoresRef, scores);
+}
 
-    function resetBall() {
-      ball.x = canvas.width / 2;
-      ball.y = canvas.height / 2;
-      ball.vx = 0;
-      ball.vy = 0;
-      set(ballRef, ball);
-      set(scoresRef, scores);
-    }
+function celebrateGoal(team) {
+  const status = document.getElementById('status');
+  status.textContent = `${team.toUpperCase()} 팀 골!!!`;
+  status.style.color = team;
+  setTimeout(() => {
+    status.textContent = '';
+  }, 2000);
+}
 
-    function draw() {
-      // 필드 그리기
-      ctx.fillStyle = '#4CAF50';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+function checkCollision(ball, player) {
+  const dx = ball.x - Math.max(player.x, Math.min(ball.x, player.x + player.width));
+  const dy = ball.y - Math.max(player.y, Math.min(ball.y, player.y + player.height));
+  return (dx * dx + dy * dy) < (ball.radius * ball.radius);
+}
 
-      // 중앙선 그리기
-      ctx.beginPath();
-      ctx.strokeStyle = 'white';
-      ctx.setLineDash([5, 15]);
-      ctx.moveTo(canvas.width / 2, 0);
-      ctx.lineTo(canvas.width / 2, canvas.height);
-      ctx.stroke();
-      ctx.setLineDash([]);
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height / 2;
+  ball.vx = 0;
+  ball.vy = 0;
+  set(ballRef, ball);
+  set(scoresRef, scores);
+}
 
-      // 골대 그리기
-      ctx.fillStyle = 'white';
-      // 왼쪽 골대
-      ctx.fillRect(0, (canvas.height - goalSize.height) / 2, goalSize.width, goalSize.height);
-      // 오른쪽 골대
-      ctx.fillRect(canvas.width - goalSize.width, (canvas.height - goalSize.height) / 2, goalSize.width, goalSize.height);
+function draw() {
+  ctx.fillStyle = '#4CAF50';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // 플레이어 그리기
-      for (let id in players) {
-        const player = players[id];
-        ctx.fillStyle = player.color;
-        ctx.fillRect(player.x, player.y, player.width, player.height);
-      }
+  // 중앙원 그리기
+  ctx.beginPath();
+  ctx.strokeStyle = 'white';
+  ctx.arc(canvas.width / 2, canvas.height / 2, 50, 0, Math.PI * 2);
+  ctx.stroke();
 
-      // 로컬 플레이어 그리기
-      ctx.fillStyle = localPlayer.color;
-      ctx.fillRect(localPlayer.x, localPlayer.y, localPlayer.width, localPlayer.height);
+  // 중앙선 그리기
+  ctx.beginPath();
+  ctx.setLineDash([5, 15]);
+  ctx.moveTo(canvas.width / 2, 0);
+  ctx.lineTo(canvas.width / 2, canvas.height);
+  ctx.stroke();
+  ctx.setLineDash([]);
 
-      // 공 그리기
-      ctx.fillStyle = 'white';
-      ctx.beginPath();
-      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-      ctx.fill();
-    }
+  // 골대 그리기
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, (canvas.height - goalSize.height) / 2, goalSize.width, goalSize.height);
+  ctx.fillRect(canvas.width - goalSize.width, (canvas.height - goalSize.height) / 2, 
+              goalSize.width, goalSize.height);
 
-    function gameLoop() {
-      updateLocalPlayer();
-      updateBall();
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
+  // 플레이어들 그리기
+  for (let id in players) {
+    const player = players[id];
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    
+    // 플레이어 이름 표시
+    ctx.fillStyle = 'white';
+    ctx.font = '12px Arial';
+    ctx.fillText(player.name, player.x, player.y - 5);
+  }
 
-    init();
+  // 로컬 플레이어 그리기
+  ctx.fillStyle = localPlayer.color;
+  ctx.fillRect(localPlayer.x, localPlayer.y, localPlayer.width, localPlayer.height);
+  ctx.fillStyle = 'white';
+  ctx.fillText(localPlayer.name, localPlayer.x, localPlayer.y - 5);
+
+  // 공 그리기
+  ctx.fillStyle = 'white';
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 공 그림자 효과
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y + 5, ball.radius * 0.8, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.fill();
+}
+
+function gameLoop() {
+  updateLocalPlayer();
+  updateBall();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+init();
   </script>
 </body>
 </html>
