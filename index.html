@@ -67,7 +67,6 @@
 
     const players = {};
     const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-    const maxPlayers = 2;
 
     // Firebase 데이터 참조
     const playersRef = ref(db, 'players');
@@ -83,7 +82,7 @@
       const data = snapshot.val() || {};
       const playerCount = Object.keys(data).length;
 
-      if (playerCount >= maxPlayers) {
+      if (playerCount >= 2) {
         document.getElementById('status').innerText = "게임이 꽉 찼습니다. 나중에 다시 시도해주세요!";
         return;
       }
@@ -155,8 +154,6 @@
 
     // 공 물리 업데이트
     function updateBall() {
-      if (Object.keys(players).length < maxPlayers) return; // 두 명이 모두 접속해야 공 움직임 시작
-
       ball.x += ball.vx;
       ball.y += ball.vy;
 
