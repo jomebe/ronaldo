@@ -132,7 +132,7 @@ const keys = {
   Space: false,
   Shift: false
 };
-let scores = { blue: 0, red: 0 };
+let scores = ref(db, 'soccer/scores');
 
 const playersRef = ref(db, 'soccer/players');
 const ballRef = ref(db, 'soccer/ball');
