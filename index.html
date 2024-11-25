@@ -119,8 +119,9 @@
       onValue(playersRef, (snapshot) => {
         const data = snapshot.val();
         if (data) {
+          // 플레이어가 제거되었을 때
           Object.keys(players).forEach(id => {
-            if (!data[id]) delete players[id]; // 플레이어 삭제
+            if (!data[id]) delete players[id]; // Firebase에서 해당 플레이어가 없으면 제거
           });
 
           // **자신의 데이터는 중복 갱신하지 않음**
