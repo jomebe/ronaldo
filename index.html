@@ -24,7 +24,7 @@
   <script type="module">
     // Firebase 설정
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue, remove, get, update } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
+    import { getDatabase, ref, set, onValue, remove, get } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyBXvl7fhTJ9f7kK2jk3Bt7_G_GT_TxGJ0k",
@@ -122,7 +122,13 @@
           Object.keys(players).forEach(id => {
             if (!data[id]) delete players[id]; // 플레이어 삭제
           });
-          Object.assign(players, data);
+
+          // **자신의 데이터는 중복 갱신하지 않음**
+          Object.keys(data).forEach(id => {
+            if (id !== localPlayer.id) {
+              players[id] = data[id];
+            }
+          });
         } else {
           Object.keys(players).forEach(id => delete players[id]);
         }
@@ -185,6 +191,10 @@
         ctx.fillStyle = player.color;
         ctx.fillRect(player.x, player.y, player.width, player.height);
       }
+
+      // 로컬 플레이어 그리기
+      ctx.fillStyle = localPlayer.color;
+      ctx.fillRect(localPlayer.x, localPlayer.y, localPlayer.width, localPlayer.height);
 
       // 공 그리기
       ctx.fillStyle = 'black';
