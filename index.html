@@ -152,7 +152,7 @@
       authDomain: "ronaldo-bc145.firebaseapp.com",
       databaseURL: "https://ronaldo-bc145-default-rtdb.firebaseio.com",
       projectId: "ronaldo-bc145",
-      storageBucket: "ronaldo-bc145.firebasestorage.app",
+      storageBucket: "ronaldo-bc145.firebaseapp.com",
       messagingSenderId: "1023131883701",
       appId: "1:1023131883701:web:2ab35df5494794c47086fc",
       measurementId: "G-59JKT29E2Z"
@@ -182,7 +182,8 @@
       name: '플레이어_' + Math.floor(Math.random() * 1000),
       lastActive: Date.now(),
       powerCharge: 0,
-      isDashing: false
+      isDashing: false,
+      isHost: false
     };
 
     let ball = {
@@ -190,7 +191,8 @@
       y: canvas.height / 2,
       radius: 10,
       vx: 0,
-      vy: 0
+      vy: 0,
+      lastUpdate: Date.now()
     };
 
     const players = {};
@@ -204,10 +206,30 @@
     };
     let scores = { blue: 0, red: 0 };
     let lastUpdateTime = Date.now();
+    let hostId = null;
 
+    // Firebase 참조
     const playersRef = ref(db, 'soccer/players');
     const ballRef = ref(db, 'soccer/ball');
     const scoresRef = ref(db, 'soccer/scores');
+    const gameStateRef = ref(db, 'soccer/gameState');
+
+    function getHostPlayer() {
+      const playerIds = Object.keys(players);
+      playerIds.push(localPlayer.id);
+      return playerIds.sort()[0];
+    }
+
+    function updateHost() {
+      const newHostId = getHostPlayer();
+      if (newHostId !== hostId) {
+        hostId = newHostId;
+        localPlayer.isHost = hostId === localPlayer.id;
+        if (localPlayer.isHost) {
+          console.log('Now hosting the game');
+        }
+      }
+    }
 
     document.addEventListener('keydown', (e) => {
       keys[e.key] = true;
@@ -228,19 +250,22 @@
       if (e.key === 'Shift') keys.Shift = false;
     });
 
+    // 주기적으로 플레이어 활성 상태 업데이트
+    let updateInterval = 100; // ms 단위
     setInterval(() => {
-      if (localPlayer.id) {
-        set(ref(db, `soccer/players/${localPlayer.id}/lastActive`), Date.now());
-      }
-    }, 5000);
+      if (localPlayer.isHost) set(ballRef, ball);
+    }, updateInterval);
 
+
+    // 비활성 플레이어 제거
     setInterval(() => {
       const now = Date.now();
       for (let id in players) {
-        if (now - players[id].lastActive > 10000) {
+        if (now - players[id].lastActive > 5000) {
           remove(ref(db, `soccer/players/${id}`));
         }
       }
+      updateHost();
     }, 5000);
 
     async function init() {
@@ -259,17 +284,10 @@
 
       set(ref(db, `soccer/players/${localPlayer.id}`), localPlayer);
 
-      window.addEventListener('beforeunload', () => {
-        remove(ref(db, `soccer/players/${localPlayer.id}`));
-      });
-
-      window.addEventListener('offline', () => {
-        remove(ref(db, `soccer/players/${localPlayer.id}`));
-      });
-
+      // Firebase 리스너 설정
       onValue(ballRef, (snapshot) => {
         const data = snapshot.val();
-        if (data) {
+        if (data && !localPlayer.isHost) {
           ball = data;
         }
       });
@@ -290,6 +308,7 @@
             players[id] = data[id];
           }
         });
+        updateHost();
       });
 
       onValue(scoresRef, (snapshot) => {
@@ -301,6 +320,15 @@
         }
       });
 
+      // 창 닫힐 때 플레이어 제거
+      window.addEventListener('beforeunload', () => {
+        remove(ref(db, `soccer/players/${localPlayer.id}`));
+      });
+
+      window.addEventListener('offline', () => {
+        remove(ref(db, `soccer/players/${localPlayer.id}`));
+      });
+
       gameLoop();
     }
 
@@ -310,7 +338,7 @@
       if (players) {
         Object.values(players).forEach(player => {
           const div = document.createElement('div');
-          div.textContent = `${player.name} (${player.team})`;
+          div.textContent = `${player.name} (${player.team})${player.id === hostId ? ' (Host)' : ''}`;
           div.style.color = player.team === 'blue' ? '#4a9eff' : '#ff4a4a';
           playerList.appendChild(div);
         });
@@ -322,6 +350,8 @@
     }
 
     function kickBall(power) {
+      if (!localPlayer.isHost) return;
+      
       const dx = ball.x - (localPlayer.x + localPlayer.width/2);
       const dy = ball.y - (localPlayer.y + localPlayer.height/2);
       const angle = Math.atan2(dy, dx);
@@ -329,11 +359,12 @@
       
       ball.vx = Math.cos(angle) * kickPower;
       ball.vy = Math.sin(angle) * kickPower;
+      ball.lastUpdate = Date.now();
       set(ballRef, ball);
     }
 
     function updateLocalPlayer() {
-      const baseSpeed = 5;
+      const baseSpeed = 2;
       const dashSpeed = keys.Shift ? 2 : 1;
       const speed = baseSpeed * dashSpeed;
 
@@ -365,7 +396,7 @@
     function checkCollision(ball, player) {
       const dx = ball.x - Math.max(player.x, Math.min(ball.x, player.x + player.width));
       const dy = ball.y - Math.max(player.y, Math.min(ball.y, player.y + player.height));
-      return (dx * dx + dy * dy) < (ball.radius * ball.radius);
+      return (dx * dx + dy * dy) < (ball.radius *ball.radius);
     }
 
     function draw() {
@@ -440,6 +471,9 @@
     }
 
     function updateBall() {
+      // 호스트 플레이어만 공 물리 계산을 수행
+      if (!localPlayer.isHost) return;
+
       const currentTime = Date.now();
       const deltaTime = (currentTime - lastUpdateTime) / 1000;
       lastUpdateTime = currentTime;
@@ -481,6 +515,12 @@
       // 골 체크
       checkGoal();
 
+      // 작은 속도는 0으로 만들기
+      if (Math.abs(ball.vx) < 0.01) ball.vx = 0;
+      if (Math.abs(ball.vy) < 0.01) ball.vy = 0;
+
+      ball.lastUpdate = currentTime;
+      
       // Firebase에 공 상태 업데이트
       set(ballRef, ball);
     }
@@ -515,17 +555,35 @@
         y: canvas.height / 2,
         radius: 10,
         vx: 0,
-        vy: 0
+        vy: 0,
+        lastUpdate: Date.now()
       };
       set(ballRef, ball);
     }
 
-    function gameLoop() {
+    function interpolateBallPosition() {
       const currentTime = Date.now();
-      if (currentTime - lastUpdateTime > 16) {  // 약 60fps
-        updateLocalPlayer();
+      const elapsedTime = (currentTime - ball.lastUpdate) / 1000; // 초 단위 시간 차이
+      
+      // 더 부드러운 보간을 위해 감쇠 계수 도입
+      const dampingFactor = 0.9;
+      ball.x += ball.vx * elapsedTime * 60 * dampingFactor;
+      ball.y += ball.vy * elapsedTime * 60 * dampingFactor;
+      
+      // 공 속도 점진적으로 감소
+      ball.vx *= 0.95;
+      ball.vy *= 0.95;
+      
+      ball.lastUpdate = currentTime;
+    }
+    
+
+    function gameLoop() {
+      updateLocalPlayer();
+      if (localPlayer.isHost) {
         updateBall();
-        lastUpdateTime = currentTime;
+      } else {
+        interpolateBallPosition();
       }
       draw();
       requestAnimationFrame(gameLoop);
