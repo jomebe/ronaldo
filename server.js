@@ -149,36 +149,36 @@ function onConnection(ws) {
 
     switch (data.type) {
       case 'connect':
-      const team = Object.keys(players).length === 0 ? 'blue' : 'red';
-      const player = {
-        ...data.player,
-        team: team,
-        color: team === 'blue' ? '#4a9eff' : '#ff4a4a',
-        x: team === 'blue' ? 100 : 700
-      };
+        const team = Object.keys(players).length === 0 ? 'blue' : 'red';
+        const player = {
+          ...data.player,
+          team: data.player.team,
+          color: data.player.team === 'blue' ? '#4a9eff' : '#ff4a4a',
+          x: data.player.team === 'blue' ? 100 : 700
+        };
 
-      players[data.player.id] = player;
+        players[data.player.id] = player;
 
-      // 새 플레이어에게 현재 게임 상태 전송
-      ws.send(JSON.stringify({
-        type: 'game_state',
-        players: players,
-        ball: ball,
-        team: team,
-      }));
+        // 새 플레이어에게 현재 게임 상태 전송
+        ws.send(JSON.stringify({
+          type: 'game_state',
+          players: players,
+          ball: ball,
+          team: player.team,
+        }));
 
-      // 다른 모든 클라이언트에게 새 플레이어 알림
-      wss.clients.forEach(client => {
-        if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'player_joined',
-            player: player
-          }));
-        }
-      });
+        // 다른 모든 클라이언트에게 새 플레이어 알림
+        wss.clients.forEach(client => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({
+              type: 'player_joined',
+              player: player
+            }));
+          }
+        });
 
-      broadcastPlayerList();
-      break;
+        broadcastPlayerList();
+        break;
 
       case 'player_input':
         if (players[playerId]) {

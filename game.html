@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebSocket 멀티플레이 축구게임</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      text-align: center;
+      font-family: 'Poppins', sans-serif;
+      background: #1a1a1a;
+      color: white;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #fff;
+      margin-bottom: 20px;
+      font-size: 2.5em;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+
+    canvas {
+      border: 3px solid #333;
+      border-radius: 10px;
+      display: block;
+      margin: 0 auto;
+      background: linear-gradient(to right, #1a472a, #2d5a3f);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .game-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .score {
+      font-size: 28px;
+      margin: 20px;
+      background: #2a2a2a;
+      padding: 15px 30px;
+      border-radius: 15px;
+      display: inline-block;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .score span {
+      margin: 0 15px;
+      font-weight: 600;
+    }
+
+    .blue-score { color: #4a9eff; }
+    .red-score { color: #ff4a4a; }
+
+    .controls {
+      margin: 20px auto;
+      padding: 15px;
+      background: #2a2a2a;
+      border-radius: 15px;
+      max-width: 600px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .controls p {
+      margin: 10px 0;
+      color: #ddd;
+    }
+
+    .player-list {
+      margin: 20px;
+      padding: 15px;
+      background: #2a2a2a;
+      border-radius: 15px;
+      display: inline-block;
+      min-width: 200px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .player-list h3 {
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .player-list div {
+      margin: 5px 0;
+      padding: 5px;
+      border-radius: 5px;
+      background: #333;
+    }
+
+    #powerMeter {
+      width: 200px;
+      height: 20px;
+      background: #333;
+      margin: 20px auto;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    #powerBar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #4a9eff, #ff4a4a);
+      transition: width 0.1s;
+    }
+
+    #status {
+      font-size: 24px;
+      font-weight: 600;
+      height: 36px;
+      margin: 10px 0;
+      transition: all 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>⚽ WebSocket 멀티플레이 축구게임</h1>
+    <div class="score">
+      <span class="blue-score" id="blueScore">Blue: 0</span> - 
+      <span class="red-score" id="redScore">Red: 0</span>
+    </div>
+    <div class="player-list">
+      <h3>👥 접속자 목록</h3>
+      <div id="playerList"></div>
+    </div>
+    <div id="powerMeter"><div id="powerBar"></div></div>
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    <p id="status"></p>
+    <div class="controls">
+      <p>🎮 조작법</p>
+      <p>이동: 방향키 | 슈팅: 스페이스바(길게 누를수록 강력) | 대시: Shift</p>
+    </div>
+  </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  <script>
+    // WebSocket 서버 주소 (로컬 개발 환경)
+    const WS_SERVER = 'ws://localhost:8080';
+
+    // DOM 요소 캐싱
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const powerBar = document.getElementById('powerBar');
+    const statusElement = document.getElementById('status');
+
+    // 골대 크기 상수
+    const GOAL_SIZE = {
+      width: 20,
+      height: 100
+    };
+
+    // WebSocket 연결 상태 관리
+    let socket = null;
+    let isConnected = false;
+
+    // 팀과 플레이어 이름 초기화
+    const playerName = sessionStorage.getItem('playerName') || generatePlayerName();
+    const playerTeam = sessionStorage.getItem('playerTeam') || (Math.random() < 0.5 ? 'blue' : 'red');
+
+    const localPlayer = {
+      id: generateUniqueId(),
+      x: playerTeam === 'blue' ? 150 : 650,
+      y: canvas.height / 2,
+      width: 30,
+      height: 30,
+      color: playerTeam === 'blue' ? '#4a9eff' : '#ff4a4a',  // 이렇게 수정
+      score: 0,
+      team: playerTeam,
+      name: playerName,
+      powerCharge: 0,
+      lastActive: Date.now()
+    };
+
+    // 공 초기 상태
+    let ball = {
+      x: canvas.width / 2,
+      y: canvas.height / 2,
+      radius: 10,
+      vx: 0,
+      vy: 0,
+      lastUpdate: Date.now()
+    };
+
+    // 게임 상태 변수들
+    let players = {};
+    const keys = {
+      ArrowUp: false,
+      ArrowDown: false,
+      ArrowLeft: false,
+      ArrowRight: false,
+      Space: false,
+      Shift: false
+    };
+    let scores = { blue: 0, red: 0 };
+    let lastUpdateTime = Date.now();
+
+    // 유틸리티 함수: 고유 ID 생성
+    function generateUniqueId() {
+      return Math.random().toString(36).substring(2) + Date.now().toString(36);
+    }
+
+    // 유틸리티 함수: 랜덤 플레이어 이름 생성
+    function generatePlayerName() {
+      const adjectives = ['빠른', '강한', '날쌘', '민첩한', '슈퍼'];
+      const nouns = ['선수', '공격수', '골키퍼', '스트라이커', '플레이메이커'];
+      return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${nouns[Math.floor(Math.random() * nouns.length)]}_${Math.floor(Math.random() * 1000)}`;
+    }
+
+    // WebSocket 연결 함수
+    function connectWebSocket() {
+      socket = new WebSocket(WS_SERVER);
+
+      socket.onopen = handleWebSocketOpen;
+      socket.onmessage = handleWebSocketMessage;
+      socket.onclose = handleWebSocketClose;
+      socket.onerror = handleWebSocketError;
+    }
+
+    // WebSocket 열기 핸들러
+    function handleWebSocketOpen() {
+      console.log('WebSocket connection established');
+      isConnected = true;
+      statusElement.textContent = '서버에 연결되었습니다.';
+      
+      socket.send(JSON.stringify({
+        type: 'connect',
+        player: localPlayer
+      }));
+    }
+
+    // WebSocket 메시지 핸들러
+    function handleWebSocketMessage(event) {
+      const data = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'player_list':
+          players = data.players;
+          updatePlayerList(players);
+          break;
+          case 'game_state':
+          // 게임 상태 완전히 새로고침
+          players = data.players || {};
+          ball = data.ball || { x: canvas.width / 2, y: canvas.height / 2, radius: 10, vx: 0, vy: 0 };
+          
+          // 로컬 플레이어의 팀과 위치 설정
+          if (data.team) {
+            localPlayer.team = data.team;
+            localPlayer.color = data.team;
+            localPlayer.x = data.team === 'blue' ? 100 : 700;
+          }
+          
+          updatePlayerList(players);
+          break;
+        case 'ball_update':
+          updateBallState(data.ball);
+          break;
+        case 'player_update':
+           // 다른 플레이어의 위치 업데이트
+          players[data.playerId] = data.player;
+          break;
+        case 'scores_update':
+          updateScores(data.scores);
+          break;
+        case 'player_joined':
+          players[data.player.id] = data.player;
+          updatePlayerList(players);
+          break;
+        case 'player_left':
+          delete players[data.playerId];
+          updatePlayerList(players);
+          break;
+        case 'team_assignment':
+          localPlayer.team = data.team;
+          localPlayer.color = data.team;
+          break;
+      }
+    }
+
+    // WebSocket 닫기 핸들러
+    function handleWebSocketClose() {
+      console.log('WebSocket connection closed');
+      isConnected = false;
+      statusElement.textContent = '서버 연결이 끊겼습니다. 재연결 중...';
+      setTimeout(connectWebSocket, 3000);
+    }
+
+    // WebSocket 에러 핸들러
+    function handleWebSocketError(error) {
+      console.error('WebSocket Error:', error);
+      statusElement.textContent = '서버 연결 오류 발생';
+    }
+
+    // 플레이어 목록 업데이트 함수
+    function updatePlayerList(playerList) {
+      const playerListElement = document.getElementById('playerList');
+      playerListElement.innerHTML = '';
+      
+      Object.values(playerList).forEach(player => {
+        const div = document.createElement('div');
+        div.textContent = `${player.name} (${player.team})`;
+        div.style.color = player.team === 'blue' ? '#4a9eff' : '#ff4a4a';
+        playerListElement.appendChild(div);
+      });
+    }
+
+    // 게임 상태 업데이트 함수
+    function updateGameState(data) {
+      players = data.players || {};
+      ball = data.ball || { x: canvas.width / 2, y: canvas.height / 2, radius: 10, vx: 0, vy: 0 };
+      
+      if (data.team) {
+        localPlayer.team = data.team;
+        localPlayer.color = data.team;
+        localPlayer.x = data.team === 'blue' ? 100 : 700;
+      }
+      
+    }
+
+    // 공 상태 업데이트 함수
+    function updateBallState(newBallState) {
+      ball.x = newBallState.x;
+      ball.y = newBallState.y;
+      ball.vx = newBallState.vx;
+      ball.vy = newBallState.vy;
+    }
+
+    // 점수 업데이트 함수
+    function updateScores(newScores) {
+      scores = newScores;
+      document.getElementById('blueScore').textContent = `Blue: ${scores.blue}`;
+      document.getElementById('redScore').textContent = `Red: ${scores.red}`;
+    }
+
+    // 키보드 이벤트 리스너 추가
+    function addKeyboardListeners() {
+      document.addEventListener('keydown', handleKeyDown);
+      document.addEventListener('keyup', handleKeyUp);
+    }
+
+    // 키 다운 이벤트 핸들러
+    function handleKeyDown(e) {
+      if (!keys[e.code]) {
+        keys[e.code] = true;
+        
+        // 파워 차징
+        if (e.code === 'Space') {
+          localPlayer.powerCharge = Math.min(100, localPlayer.powerCharge + 5);
+          updatePowerBar();
+        }
+      }
+
+      // 서버에 키 상태 전송
+      sendKeyInputToServer();
+    }
+
+    // 키 업 이벤트 핸들러
+    function handleKeyUp(e) {
+      keys[e.code] = false;
+
+      if (e.code === 'Space') {
+        if (localPlayer.powerCharge > 0) {
+          kickBall(localPlayer.powerCharge);
+          localPlayer.powerCharge = 0;
+          updatePowerBar();
+        }
+      }
+
+      // 서버에 키 상태 전송
+      sendKeyInputToServer();
+    }
+
+    // 서버에 키 입력 전송
+    function sendKeyInputToServer() {
+      if (isConnected) {
+        socket.send(JSON.stringify({
+          type: 'player_input',
+          keys: keys
+        }));
+      }
+    }
+
+    // 파워 바 업데이트
+    function updatePowerBar() {
+      powerBar.style.width = `${localPlayer.powerCharge}%`;
+    }
+
+    // 공 차기
+    function kickBall(power) {
+      
+      const dx = ball.x - (localPlayer.x + localPlayer.width/2);
+      const dy = ball.y - (localPlayer.y + localPlayer.height/2);
+      const angle = Math.atan2(dy, dx);
+      const kickPower = power * 0.2;
+      
+      if (isConnected) {
+        socket.send(JSON.stringify({
+          type: 'ball_kick',
+          power: kickPower,
+          angle: angle
+        }));
+      }
+    }
+
+    // 그리기 함수
+    function draw() {
+      ctx.fillStyle = '#1a472a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      drawGoals();
+      drawPlayers();
+      drawBall();
+    }
+
+    // 골대 그리기
+    function drawGoals() {
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, (canvas.height - GOAL_SIZE.height) / 2, GOAL_SIZE.width, GOAL_SIZE.height);
+      ctx.fillRect(canvas.width - GOAL_SIZE.width, (canvas.height - GOAL_SIZE.height) / 2, GOAL_SIZE.width, GOAL_SIZE.height);
+    }
+
+    // 플레이어 그리기
+    function drawPlayers() {
+      Object.values(players).forEach(player => {
+        if (player.id !== localPlayer.id) {
+          //alert(player.team);
+          ctx.fillStyle = player.color || (player.team === 'blue' ? '#4a9eff' : '#ff4a4a');
+          ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+      });
+
+      // 로컬 플레이어 그리기
+      ctx.fillStyle = localPlayer.team === 'blue' ? '#4a9eff' : '#ff4a4a';
+      ctx.fillRect(localPlayer.x, localPlayer.y, localPlayer.width, localPlayer.height);
+    }
+
+    // 공 그리기
+    function drawBall() {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fillStyle = 'white';
+      ctx.fill();
+    }
+
+    // 공 업데이트 함수
+    function updateBall() {
+    
+      const currentTime = Date.now();
+      const deltaTime = (currentTime - lastUpdateTime) / 1000;
+      lastUpdateTime = currentTime;
+    
+      // 공 위치 업데이트
+      ball.x += ball.vx * deltaTime * 60;
+      ball.y += ball.vy * deltaTime * 60;
+    
+      // 벽 충돌 처리
+      handleWallCollision();
+    
+      // 플레이어 충돌 처리
+      handlePlayerCollisions();
+    
+      // 마찰력 적용
+      applyFriction();
+    
+      // 골 체크
+      checkGoal();
+    
+      // 작은 속도는 0으로 만들기
+      resetLowSpeeds();
+    
+      // WebSocket으로 ball 상태 전송
+      sendBallUpdate();
+    }
+
+    // 벽 충돌 처리
+    function handleWallCollision() {
+      if (ball.x - ball.radius < 0 || ball.x + ball.radius > canvas.width) {
+        ball.vx *= -0.8;
+        ball.x = ball.x - ball.radius < 0 ? ball.radius : canvas.width - ball.radius;
+      }
+    
+      if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+        ball.vy *= -0.8;
+        ball.y = ball.y - ball.radius < 0 ? ball.radius : canvas.height - ball.radius;
+      }
+    }
+
+    // 플레이어 충돌 처리
+    function handlePlayerCollisions() {
+      const playerList = [...Object.values(players), localPlayer];
+      
+      playerList.forEach(player => {
+        if (checkCollision(ball, player)) {
+          const dx = ball.x - (player.x + player.width/2);
+          const dy = ball.y - (player.y + player.height/2);
+          const angle = Math.atan2(dy, dx);
+          const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
+          const newSpeed = speed * 1.2; // 충돌 시 속도 증가
+          
+          ball.vx = Math.cos(angle) * newSpeed;
+          ball.vy = Math.sin(angle) * newSpeed;
+        }
+      });
+    }
+
+    // 마찰력 적용
+    function applyFriction() {
+      ball.vx *= 0.98;
+      ball.vy *= 0.98;
+    }
+
+    // 낮은 속도 리셋
+    function resetLowSpeeds() {
+      if (Math.abs(ball.vx) < 0.01) ball.vx = 0;
+      if (Math.abs(ball.vy) < 0.01) ball.vy = 0;
+    }
+
+    // 공 상태 전송
+    function sendBallUpdate() {
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'ball_update',
+          ball: ball
+        }));
+      }
+    }
+
+    // 충돌 체크 함수
+    function checkCollision(ball, player) {
+      const dx = ball.x - Math.max(player.x, Math.min(ball.x, player.x + player.width));
+      const dy = ball.y - Math.max(player.y, Math.min(ball.y, player.y + player.height));
+      return (dx * dx + dy * dy) < (ball.radius * ball.radius);
+    }
+
+    // 골 체크 함수
+    function checkGoal() {
+      // 왼쪽 골대 (blue 팀)
+      if (ball.x - ball.radius < GOAL_SIZE.width && 
+          ball.y > (canvas.height - GOAL_SIZE.height) / 2 && 
+          ball.y < (canvas.height + GOAL_SIZE.height) / 2) {
+        scores.red++;
+        celebrateGoal('red');
+        resetBall();
+        return true;
+      } 
+      // 오른쪽 골대 (red 팀)
+      else if (ball.x + ball.radius > canvas.width - GOAL_SIZE.width && 
+               ball.y > (canvas.height - GOAL_SIZE.height) / 2 && 
+               ball.y < (canvas.height + GOAL_SIZE.height) / 2) {
+        scores.blue++;
+        celebrateGoal('blue');
+        resetBall();
+        return true;
+      }
+      return false;
+    }
+
+    // 골 시 축하 함수
+    function celebrateGoal(team) {
+      statusElement.textContent = `🎉 ${team.toUpperCase()} 팀 골!!!`;
+      statusElement.style.color = team === 'blue' ? '#4a9eff' : '#ff4a4a';
+      setTimeout(() => {
+        statusElement.textContent = '';
+      }, 2000);
+    
+      // 점수 업데이트를 서버에 전송
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'scores_update',
+          scores: scores
+        }));
+      }
+    }
+
+    // 공 리셋 함수
+    function resetBall() {
+      ball = {
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        radius: 10,
+        vx: 0,
+        vy: 0,
+        lastUpdate: Date.now()
+      };
+    
+      // 공 리셋을 서버에 전송
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'ball_update',
+          ball: ball
+        }));
+      }
+    }
+
+   
+
+    // 로컬 플레이어 업데이트 함수
+    function updateLocalPlayer() {
+      const baseSpeed = 2;
+      const dashSpeed = keys.Shift ? 4 : 1;
+      const speed = baseSpeed * dashSpeed;
+    
+      if (keys.ArrowUp) localPlayer.y -= speed;
+      if (keys.ArrowDown) localPlayer.y += speed;
+      if (keys.ArrowLeft) localPlayer.x -= speed;
+      if (keys.ArrowRight) localPlayer.x += speed;
+    
+      // 캔버스 경계 제한
+      localPlayer.x = Math.max(0, Math.min(canvas.width - localPlayer.width, localPlayer.x));
+      localPlayer.y = Math.max(0, Math.min(canvas.height - localPlayer.height, localPlayer.y));
+    
+      // 플레이어 상태를 서버에 전송
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({
+          type: 'player_update',
+          playerId: localPlayer.id,
+          player: localPlayer
+        }));
+      }
+  }
+
+    // 게임 루프
+    function gameLoop() {
+      updateLocalPlayer();
+        updateBall();
+      draw();
+      requestAnimationFrame(gameLoop);
+    }
+
+    // 초기화 함수
+    function init() {
+      connectWebSocket();
+      addKeyboardListeners();
+      gameLoop();
+
+      // 창이 닫힐 때 연결 종료
+      window.addEventListener('beforeunload', () => {
+        if (isConnected) {
+          socket.send(JSON.stringify({
+            type: 'disconnect',
+            playerId: localPlayer.id
+          }));
+          socket.close();
+        }
+      });
+    }
+
+    // 게임 시작
+    init();
+  </script>
+</body>
+</html>
