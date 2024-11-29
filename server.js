@@ -157,6 +157,7 @@ function onConnection(ws) {
     switch (data.type) {
       case 'connect':
         const team = Object.keys(players).length === 0 ? 'blue' : 'red';
+        currentPlayerId = data.player.id;
         const player = {
           ...data.player,
           team: data.player.team,
@@ -271,6 +272,15 @@ function onConnection(ws) {
   ws.on('close', () => {
     console.log(`클라이언트 연결 종료: ${currentPlayerId}`);
     delete players[currentPlayerId];
+    // 모든 클라이언트에게 플레이어 나감 알림
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type: 'player_left',
+          playerId: currentPlayerId
+        }));
+      }
+    });
     broadcastPlayerList();
   });
   
