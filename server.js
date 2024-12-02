@@ -59,20 +59,28 @@ function updateBall() {
 
   // 플레이어와의 충돌 처리 추가
   Object.values(players).forEach(player => {
-    const dx = ball.x - (player.x + player.width/2);
-    const dy = ball.y - (player.y + player.height/2);
+    const dx = ball.x - (player.x + player.width / 2);
+    const dy = ball.y - (player.y + player.height / 2);
     const distance = Math.sqrt(dx * dx + dy * dy);
     const minDistance = ball.radius + Math.max(player.width, player.height) / 2;
-
+  
     if (distance < minDistance) {
       const angle = Math.atan2(dy, dx);
-      const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-      const newSpeed = speed * 1.2; // 충돌 시 속도 증가
-
-      ball.vx = Math.cos(angle) * newSpeed;
-      ball.vy = Math.sin(angle) * newSpeed;
+  
+      // 공이 멈춰있을 경우 최소 속도를 설정
+      const minSpeed = 3; // 최소 속도
+      if (ball.vx === 0 && ball.vy === 0) {
+        ball.vx = Math.cos(angle) * minSpeed;
+        ball.vy = Math.sin(angle) * minSpeed;
+      } else {
+        // 공이 움직이고 있다면 기존 로직 적용
+        const collisionForce = 5;
+        ball.vx = Math.cos(angle) * collisionForce;
+        ball.vy = Math.sin(angle) * collisionForce;
+      }
     }
   });
+  
 
   // 마찰력 적용
   ball.vx *= 0.98;

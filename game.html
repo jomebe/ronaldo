@@ -508,31 +508,31 @@
     }
 
     // 플레이어 충돌 처리
-    // 플레이어 충돌 처리
-function handlePlayerCollisions() {
-  const playerList = [...Object.values(players), localPlayer];
-  
-  playerList.forEach(player => {
-    if (checkCollision(ball, player)) {
-      const dx = ball.x - (player.x + player.width/2);
-      const dy = ball.y - (player.y + player.height/2);
-      const angle = Math.atan2(dy, dx);
-      
-      // 공이 완전히 정지해있으면 최소한의 속도 부여
-      if (ball.vx === 0 && ball.vy === 0) {
-        ball.vx = Math.cos(angle) * 1;
-        ball.vy = Math.sin(angle) * 1;
-      } else {
-        // 기존 충돌 로직 유지 
-        const speed = Math.sqrt(ball.vx * ball.vx + ball.vy * ball.vy);
-        const newSpeed = speed * 1.2; // 충돌 시 속도 증가
-        
-        ball.vx = Math.cos(angle) * newSpeed;
-        ball.vy = Math.sin(angle) * newSpeed;
-      }
+    function handlePlayerCollisions() {
+      const playerList = [...Object.values(players), localPlayer];
+    
+      playerList.forEach(player => {
+        if (checkCollision(ball, player)) {
+          const dx = ball.x - (player.x + player.width / 2);
+          const dy = ball.y - (player.y + player.height / 2);
+          const angle = Math.atan2(dy, dx);
+    
+          // 공이 멈춰있을 경우 최소 속도를 설정
+          const minSpeed = 3; // 최소 속도
+          if (ball.vx === 0 && ball.vy === 0) {
+            ball.vx = Math.cos(angle) * minSpeed;
+            ball.vy = Math.sin(angle) * minSpeed;
+          } else {
+            // 공이 움직이고 있다면 기존 로직 적용
+            const collisionForce = 5;
+            ball.vx = Math.cos(angle) * collisionForce;
+            ball.vy = Math.sin(angle) * collisionForce;
+          }
+        }
+      });
     }
-  });
-}
+    
+    
     // 마찰력 적용
     function applyFriction() {
       ball.vx *= 0.98;
