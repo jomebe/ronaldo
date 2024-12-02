@@ -139,7 +139,7 @@
     <p id="status"></p>
     <div class="controls">
       <p>🎮 조작법</p>
-      <p>이동: 방향키 | 대시: ShiftLeft</p>
+      <p>이동: 방향키/WASD | 대시: ShiftLeft</p>
     </div>
   </div>
 
@@ -211,6 +211,13 @@
       ArrowDown: false,
       ArrowLeft: false,
       ArrowRight: false,
+      
+      // WASD Keys
+      KeyW: false,
+      KeyA: false,
+      KeyS: false,
+      KeyD: false,
+
       ShiftLeft: false
     };
     let scores = { blue: 0, red: 0 };
@@ -361,6 +368,7 @@
 
     // 키 다운 이벤트 핸들러
     function handleKeyDown(e) {
+      //alert("enter key"+e.code);
       // 모든 키에 대해 상태 업데이트
       if (e.code in keys) {
         keys[e.code] = true;
@@ -604,10 +612,11 @@ function updateLocalPlayer() {
   const speedMultiplier = keys.ShiftLeft ? dashSpeed : normalSpeed;
   const speed = baseSpeed * speedMultiplier;
 
-  if (keys.ArrowUp) localPlayer.y -= speed;
-  if (keys.ArrowDown) localPlayer.y += speed;
-  if (keys.ArrowLeft) localPlayer.x -= speed;
-  if (keys.ArrowRight) localPlayer.x += speed;
+      // 화살표 키 지원
+  if (keys.ArrowUp || keys.KeyW) localPlayer.y -= speed;
+  if (keys.ArrowDown || keys.KeyS) localPlayer.y += speed;
+  if (keys.ArrowLeft || keys.KeyA) localPlayer.x -= speed;
+  if (keys.ArrowRight || keys.KeyD) localPlayer.x += speed;
 
   // 캔버스 경계 제한
   localPlayer.x = Math.max(0, Math.min(canvas.width - localPlayer.width, localPlayer.x));
