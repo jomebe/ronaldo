@@ -139,7 +139,7 @@
     <p id="status"></p>
     <div class="controls">
       <p>🎮 조작법</p>
-      <p>이동: 방향키 | 슈팅: 스페이스바(길게 누를수록 강력) | 대시: Shift</p>
+      <p>이동: 방향키 | 대시: ShiftLeft</p>
     </div>
   </div>
 
@@ -211,8 +211,7 @@
       ArrowDown: false,
       ArrowLeft: false,
       ArrowRight: false,
-      Space: true,
-      Shift: false
+      ShiftLeft: false
     };
     let scores = { blue: 0, red: 0 };
     let lastUpdateTime = Date.now();
@@ -362,32 +361,22 @@
 
     // 키 다운 이벤트 핸들러
     function handleKeyDown(e) {
-      if (!keys[e.code]) {
+      // 모든 키에 대해 상태 업데이트
+      if (e.code in keys) {
         keys[e.code] = true;
-        
-        // 파워 차징
-        if (e.code === 'Space') {
-          localPlayer.powerCharge = Math.min(100, localPlayer.powerCharge + 5);
-          updatePowerBar();
-        }
       }
-
+    
       // 서버에 키 상태 전송
       sendKeyInputToServer();
     }
 
     // 키 업 이벤트 핸들러
     function handleKeyUp(e) {
-      keys[e.code] = false;
-
-      if (e.code === 'Space') {
-        if (localPlayer.powerCharge > 0) {
-          kickBall(localPlayer.powerCharge);
-          localPlayer.powerCharge = 0;
-          updatePowerBar();
-        }
+      // 모든 키에 대해 상태 업데이트
+      if (e.code in keys) {
+        keys[e.code] = false;
       }
-
+    
       // 서버에 키 상태 전송
       sendKeyInputToServer();
     }
@@ -402,27 +391,8 @@
       }
     }
 
-    // 파워 바 업데이트
-    function updatePowerBar() {
-      powerBar.style.width = `${localPlayer.powerCharge}%`;
-    }
-
-    // 공 차기
-    function kickBall(power) {
-      
-      const dx = ball.x - (localPlayer.x + localPlayer.width/2);
-      const dy = ball.y - (localPlayer.y + localPlayer.height/2);
-      const angle = Math.atan2(dy, dx);
-      const kickPower = power * 0.2;
-      
-      if (isConnected) {
-        socket.send(JSON.stringify({
-          type: 'ball_kick',
-          power: kickPower,
-          angle: angle
-        }));
-      }
-    }
+    
+    
 
     // 그리기 함수
     function draw() {
@@ -625,29 +595,41 @@
    
 
     // 로컬 플레이어 업데이트 함수
-    function updateLocalPlayer() {
-      const baseSpeed = 2;
-      const dashSpeed = keys.Shift ? 4 : 1;
-      const speed = baseSpeed * dashSpeed;
-    
-      if (keys.ArrowUp) localPlayer.y -= speed;
-      if (keys.ArrowDown) localPlayer.y += speed;
-      if (keys.ArrowLeft) localPlayer.x -= speed;
-      if (keys.ArrowRight) localPlayer.x += speed;
-    
-      // 캔버스 경계 제한
-      localPlayer.x = Math.max(0, Math.min(canvas.width - localPlayer.width, localPlayer.x));
-      localPlayer.y = Math.max(0, Math.min(canvas.height - localPlayer.height, localPlayer.y));
-    
-      // 플레이어 상태를 서버에 전송
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({
-          type: 'player_update',
-          playerId: localPlayer.id,
-          player: localPlayer
-        }));
-      }
+function updateLocalPlayer() {
+  const baseSpeed = 2;
+  const dashSpeed = 2; // 대쉬 속도 증가
+  const normalSpeed = 1; // 일반 이동 속도 계수
+  
+  // Shift 키 누르고 있을 때 대쉬 속도 적용
+  const speedMultiplier = keys.ShiftLeft ? dashSpeed : normalSpeed;
+  const speed = baseSpeed * speedMultiplier;
+
+  if (keys.ArrowUp) localPlayer.y -= speed;
+  if (keys.ArrowDown) localPlayer.y += speed;
+  if (keys.ArrowLeft) localPlayer.x -= speed;
+  if (keys.ArrowRight) localPlayer.x += speed;
+
+  // 캔버스 경계 제한
+  localPlayer.x = Math.max(0, Math.min(canvas.width - localPlayer.width, localPlayer.x));
+  localPlayer.y = Math.max(0, Math.min(canvas.height - localPlayer.height, localPlayer.y));
+
+  // 대쉬 시각적 표시 (선택적)
+  if (keys.ShiftLeft) {
+    localPlayer.color = localPlayer.team === 'blue' ? '#87CEFA' : '#FF6347'; // 밝은 색상으로 변경
+  } else {
+    // 원래 팀 색상으로 복원
+    localPlayer.color = localPlayer.team === 'blue' ? '#4a9eff' : '#ff4a4a';
   }
+
+  // 플레이어 상태를 서버에 전송
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({
+      type: 'player_update',
+      playerId: localPlayer.id,
+      player: localPlayer
+    }));
+  }
+}
 
     // 게임 루프
     function gameLoop() {

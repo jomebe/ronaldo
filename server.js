@@ -196,36 +196,6 @@ function onConnection(ws) {
         broadcastPlayerList();
         break;
 
-      case 'player_input':
-        if (players[playerId]) {
-          const player = players[playerId];
-
-          // 플레이어 위치 업데이트
-          const baseSpeed = 2;
-          const dashMultiplier = data.keys.Shift ? 2 : 1;
-          const speed = baseSpeed * dashMultiplier;
-
-          if (data.keys.ArrowUp) player.y -= speed;
-          if (data.keys.ArrowDown) player.y += speed;
-          if (data.keys.ArrowLeft) player.x -= speed;
-          if (data.keys.ArrowRight) player.x += speed;
-
-          // 경계 제한
-          player.x = Math.max(0, Math.min(800 - player.width, player.x));
-          player.y = Math.max(0, Math.min(400 - player.height, player.y));
-
-          // 모든 클라이언트에게 플레이어 위치 브로드캐스트
-          wss.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({
-                type: 'player_update',
-                playerId: playerId,
-                player: player
-              }));
-            }
-          });
-        }
-        break;
       case 'player_update':
         if (players[data.playerId]) {
           players[data.playerId] = data.player;
@@ -242,23 +212,43 @@ function onConnection(ws) {
           });
         }
         break;
-      case 'ball_kick':
-          const speed = data.power * 0.2;
-          ball.vx = Math.cos(data.angle) * speed;
-          ball.vy = Math.sin(data.angle) * speed;
-          ball.lastUpdate = Date.now();
-
-          // 모든 클라이언트에게 공 상태 브로드캐스트
-          wss.clients.forEach(client => {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(JSON.stringify({
-                type: 'ball_update',
-                ball: ball
-              }));
-            }
-          });
+        case 'player_input':
+          if (players[currentPlayerId]) {
+            // 키 상태를 플레이어에 반영
+            const player = players[currentPlayerId];
+            
+            // 이동 로직 (클라이언트와 동일하게 구현)
+            const baseSpeed = 2;
+            const dashSpeed = 4; // 대쉬 속도
+            const speedMultiplier = data.keys.Shift ? dashSpeed : 1;
+            const speed = baseSpeed * speedMultiplier;
         
-        break;
+            if (data.keys.ArrowUp) player.y -= speed;
+            if (data.keys.ArrowDown) player.y += speed;
+            if (data.keys.ArrowLeft) player.x -= speed;
+            if (data.keys.ArrowRight) player.x += speed;
+        
+            // 캔버스 경계 제한 (800x400 기준)
+            player.x = Math.max(0, Math.min(800 - player.width, player.x));
+            player.y = Math.max(0, Math.min(400 - player.height, player.y));
+        
+            // 대쉬 상태에 따라 색상 변경
+            player.color = data.keys.Shift 
+              ? (player.team === 'blue' ? '#87CEFA' : '#FF6347') 
+              : (player.team === 'blue' ? '#4a9eff' : '#ff4a4a');
+        
+            // 모든 클라이언트에게 플레이어 위치 브로드캐스트
+            wss.clients.forEach(client => {
+              if (client.readyState === WebSocket.OPEN) {
+                client.send(JSON.stringify({
+                  type: 'player_update',
+                  playerId: currentPlayerId,
+                  player: player
+                }));
+              }
+            });
+          }
+          break;
 
       case 'disconnect':
         delete players[playerId];
