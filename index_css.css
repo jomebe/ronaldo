@@ -1,0 +1,169 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(135deg, #1a2a3a, #0f1c28);
+  color: white;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  text-align: center;
+  perspective: 1000px;
+}
+
+.team-selection-container {
+  background: rgba(42, 42, 42, 0.8);
+  border-radius: 20px;
+  padding: 50px;
+  box-shadow: 
+    0 15px 35px rgba(0, 0, 0, 0.3),
+    0 0 50px rgba(74, 158, 255, 0.1);
+  max-width: 650px;
+  width: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.team-selection-container:hover {
+  transform: rotateX(5deg) rotateY(-5deg);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.4),
+    0 0 60px rgba(74, 158, 255, 0.2);
+}
+
+h1 {
+  margin-bottom: 40px;
+  color: #fff;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 2.5em;
+  background: linear-gradient(45deg, #4a9eff, #ff4a4a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 2px;
+}
+
+.team-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+  margin-bottom: 40px;
+}
+
+.team-btn {
+  padding: 15px 50px;
+  font-size: 18px;
+  font-weight: 600;
+  border: none;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.blue-team {
+  background-color: #4a9eff;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.red-team {
+  background-color: #ff4a4a;
+  color: white;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.team-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.team-btn:hover::before {
+  left: 0;
+}
+
+.team-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+}
+
+.player-name-container {
+  margin-bottom: 30px;
+}
+
+#playerNameInput {
+  padding: 12px 15px;
+  width: 100%;
+  border-radius: 10px;
+  border: 2px solid #444;
+  background: #333;
+  color: white;
+  font-size: 16px;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+#playerNameInput:focus {
+  border-color: #4a9eff;
+  box-shadow: 0 0 10px rgba(74, 158, 255, 0.3);
+}
+
+.start-btn {
+  background: linear-gradient(45deg, #2ecc71, #27ae60);
+  color: white;
+  border: none;
+  padding: 15px 50px;
+  font-size: 18px;
+  border-radius: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.start-btn:disabled {
+  background: linear-gradient(45deg, #6c757d, #555);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.start-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 8px 15px rgba(0,0,0,0.3);
+}
+
+.start-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.start-btn:hover::before {
+  left: 0;
+}

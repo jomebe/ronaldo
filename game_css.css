@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Roboto', sans-serif;
+  background: linear-gradient(135deg, #1a2a3a, #0f1c28);
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.game-container {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  padding: 30px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+  max-width: 1100px;
+  width: 100%;
+}
+
+h1 {
+  color: #fff;
+  text-align: center;
+  margin-bottom: 30px;
+  font-size: 2.8em;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(45deg, #4a9eff, #ff4a4a);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+canvas {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+  border: 5px solid #2c3e50;
+  border-radius: 15px;
+  background: linear-gradient(to bottom, #2ecc71, #27ae60);
+  box-shadow: 
+    0 10px 20px rgba(0, 0, 0, 0.2),
+    0 0 50px rgba(39, 174, 96, 0.3);
+  
+  /* 축구장 라인 추가 */
+  background-image: 
+    linear-gradient(to bottom, transparent 49.5%, rgba(255,255,255,0.2) 49.5%, rgba(255,255,255,0.2) 50.5%, transparent 50.5%),
+    linear-gradient(to right, transparent 49.5%, rgba(255,255,255,0.2) 49.5%, rgba(255,255,255,0.2) 50.5%, transparent 50.5%);
+  background-size: 100% 100%, 100% 100%;
+}
+
+.score {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+  background: rgba(42, 42, 42, 0.7);
+  padding: 15px 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.score span {
+  font-size: 32px;
+  margin: 0 20px;
+  font-weight: 700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.blue-score { 
+  color: #4a9eff;
+  background: rgba(74, 158, 255, 0.1);
+  border-radius: 10px;
+  padding: 5px 15px;
+}
+
+.red-score { 
+  color: #ff4a4a;
+  background: rgba(255, 74, 74, 0.1);
+  border-radius: 10px;
+  padding: 5px 15px;
+}
+
+.controls {
+  background: rgba(42, 42, 42, 0.7);
+  border-radius: 15px;
+  padding: 20px;
+  margin: 20px 0;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.controls p {
+  color: #ddd;
+  font-size: 16px;
+  letter-spacing: 1px;
+}
+
+.player-list {
+  background: rgba(42, 42, 42, 0.7);
+  border-radius: 15px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.player-list h3 {
+  color: #fff;
+  margin-bottom: 15px;
+  text-align: center;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 10px;
+}
+
+.player-list div {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  transition: background 0.3s ease;
+}
+
+.player-list div:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#status {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 600;
+  margin: 20px 0;
+  padding: 10px;
+  border-radius: 10px;
+  transition: all 0.3s ease;
+}
