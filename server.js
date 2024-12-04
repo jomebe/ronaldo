@@ -152,7 +152,7 @@ function resetBall() {
 }
 
 // 게임 루프 (60 FPS)
-setInterval(updateBall, 1000 / 60);
+setInterval(updateBall, 1000 / 144);
 
 // WebSocket 연결 이벤트 처리 함수
 function onConnection(ws) {
