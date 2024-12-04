@@ -22,44 +22,7 @@ let ball = {
 };
 let scores = { blue: 0, red: 0 };
 
-const rooms = {};  // 방 관리 객체 추가
 
-
-// 방 생성 함수
-function createRoom(roomCode, roomName) {
-  if (!rooms[roomCode]) {
-    rooms[roomCode] = {
-      name: roomName,
-      players: {},
-      ball: {
-        x: 400,
-        y: 200,
-        radius: 10,
-        vx: 0,
-        vy: 0,
-        lastUpdate: Date.now()
-      },
-      scores: { blue: 0, red: 0 }
-    };
-    return true;
-  }
-  return false;
-}
-
-// 방 참가 함수
-function joinRoom(roomCode, player) {
-  if (rooms[roomCode]) {
-    const playerTeam = Object.keys(rooms[roomCode].players).length === 0 ? 'blue' : 'red';
-    
-    player.team = playerTeam;
-    player.color = playerTeam === 'blue' ? '#4a9eff' : '#ff4a4a';
-    player.x = playerTeam === 'blue' ? 100 : 700;
-    
-    rooms[roomCode].players[player.id] = player;
-    return player;
-  }
-  return null;
-}
 
 // 플레이어 목록 브로드캐스트
 function broadcastPlayerList() {
@@ -189,13 +152,12 @@ function resetBall() {
 }
 
 // 게임 루프 (60 FPS)
-setInterval(updateBall, 1000 / 30);
+setInterval(updateBall, 1000 / 60);
 
 // WebSocket 연결 이벤트 처리 함수
 function onConnection(ws) {
   const playerId = Math.random().toString(36).substring(2);
   let currentPlayerId = null;
-  let currentRoomCode = null;
 
   ws.on('message', (message) => {
     const data = JSON.parse(message);
@@ -287,58 +249,10 @@ function onConnection(ws) {
             });
           }
           break;
-      case 'create_room':
-        const newRoomCode = data.roomCode;
-        const success = createRoom(newRoomCode, data.roomName);
-        ws.send(JSON.stringify({
-          type: 'room_created',
-          success: success,
-          roomCode: newRoomCode
-        }));
-        break;
-      
-      case 'join_room':
-        const roomCode = data.roomCode;
-        const roomExists = rooms[roomCode];
-        
-        if (roomExists) {
-          currentRoomCode = roomCode;
-          currentPlayerId = data.player.id;
-          
-          const player = joinRoom(roomCode, data.player);
-          
-          if (player) {
-            // 현재 방의 게임 상태 전송
-            ws.send(JSON.stringify({
-              type: 'game_state',
-              room: rooms[roomCode]
-            }));
-
-            // 다른 클라이언트에게 새 플레이어 알림
-            wss.clients.forEach(client => {
-              if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify({
-                  type: 'player_joined',
-                  roomCode: roomCode,
-                  player: player
-                }));
-              }
-            });
-          }
-        } else {
-          ws.send(JSON.stringify({
-            type: 'join_room_error',
-            message: '존재하지 않는 방입니다.'
-          }));
-        }
-        break;
 
       case 'disconnect':
-        if (currentRoomCode && rooms[currentRoomCode]) {
-          delete rooms[currentRoomCode].players[currentPlayerId];
-        }
         delete players[playerId];
-        broadcastPlayerList();  
+        broadcastPlayerList();
 
         // 다른 모든 클라이언트에게 플레이어 나감 알림
         wss.clients.forEach(client => {
